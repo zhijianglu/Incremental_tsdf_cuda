@@ -1,0 +1,156 @@
+%YAML:1.0
+
+data_formate: "VIDEO"   # IMAGES or VIDEO
+
+#mixed
+video_path: "../TSDF_TEST_DATA/s_baseheight_1079_plus_200m_75deg_1.MP4"
+pc_save_path: "../output"
+additional_name: "_mixed"
+est_depth_path: "../TSDF_TEST_DATA/s_baseheight_1079_plus_200m_75deg_1"
+est_pose_file:  "../TSDF_TEST_DATA/s_baseheight_1079_plus_200m_75deg_1/kf_traj.txt"
+save_pcd: 1
+n_line2giveup: 10
+incremental_show: 0
+
+#下面这些只在有真值的情况下用得上
+apply_scale: 0
+start_time: 0
+gt_path: "/media/lab/disk_G/sim_data2/curve200"
+
+show_rgb: 0
+show_traj: 0
+show_pc_zoom: 1
+#todo------ log to record
+record_trg_cost: 1
+record_err: 1
+depth_result_factor: 10000.0
+
+depth_gt_mfactor: 100.0
+depth_decrease600: 0
+depth_decrease800: 300
+depth_decrease1000: 400
+depth_decrease1200: 600
+depth_decrease1400: 800
+depth_decrease1600: 1000
+
+
+#air2 640x360
+#Camera.fx: 472.207450973341
+#Camera.fy: 473.842590357607
+#Camera.cx: 313.151755768808
+#Camera.cy: 178.408929629817
+#Camera.k1: -0.0481841074584956
+#Camera.k2: 0.241124715938592
+#Camera.p1: -0.00098149546449882
+#Camera.p2: -0.00137883196058885
+#Camera.p3: -0.326525252407649
+#Camera.width: 640
+#Camera.height: 360
+
+#air2 960x540
+Camera.fx: 708.677487640093
+Camera.fy: 710.565527692411
+Camera.cx: 470.501646846344
+Camera.cy: 270.727968883543
+Camera.k1: -0.0481044578243
+Camera.k2: 0.24469910050615
+Camera.p1: -2.20865814119869e-05
+Camera.p2: -0.000877816971200918
+Camera.p3: -0.345687409034345
+Camera.width: 960
+Camera.height: 540
+
+#air2 1920x1080
+#Camera.fx: 1416.00680747438
+#Camera.fy: 1419.99039898015
+#Camera.cx: 946.539374967763
+#Camera.cy: 540.480291703174
+#Camera.k1: -0.0546116127565062
+#Camera.k2: 0.279334875502076
+#Camera.p1: -0.00021294959645751
+#Camera.p2: 0.000381597531205643
+#Camera.p3: -0.392002184492477
+#Camera.width: 1920
+#Camera.height: 1080
+
+#kinect2 1920x1080
+#Camera.fx: 1081.37
+#Camera.fy: 1081.37
+#Camera.cx: 959.5
+#Camera.cy: 539.5
+#Camera.k1: 0.0
+#Camera.k2: 0.0
+#Camera.p1: 0.0
+#Camera.p2: 0.0
+#Camera.p3: 0.0
+#Camera.width: 1920
+#Camera.height: 1080
+
+#kinect2 960x540
+#Camera.fx: 537.12935869839
+#Camera.fy: 536.89013796057
+#Camera.cx: 477.03786962381
+#Camera.cy: 272.80455362439
+#Camera.k1: 0.0
+#Camera.k2: 0.0
+#Camera.p1: 0.0
+#Camera.p2: 0.0
+#Camera.p3: 0.0
+#Camera.width: 960
+#Camera.height: 540
+####################
+
+#gazebo simulated camera
+#Camera.fx: 572.0437
+#Camera.fy: 572.0437
+#Camera.cx: 480.25
+#Camera.cy: 270.25
+#Camera.k1: 0.0
+#Camera.k2: 0.0
+#Camera.p1: 0.0
+#Camera.p2: 0.0
+#Camera.p3: 0.0
+#Camera.width: 960
+#Camera.height: 540
+
+#draw_cam_width: 0.15
+#draw_cam_height: 0.10
+
+#tum data
+#width: 640
+#height: 480
+#k1: 0.026370
+#k2: -0.100086
+#k3: 0.003138
+#r1: 0.002421
+#r2: 0.000000
+#fx: 537.960322
+#fy: 539.597659
+#cx: 319.183641
+#cy: 247.053820
+
+
+#realworld 参数
+VoxelSize: 0.0015
+TruncationScale: 5  #Truncation是VoxelSize的倍数
+
+voxelField_rate_x: 0.98
+voxelField_rate_y: 0.98
+voxelField_rate_z: 0.98
+
+GridSize_x: 800
+GridSize_y: 800
+GridSize_z: 300
+#tsdf_threshold: 0.065
+tsdf_threshold: 0.12
+factor_voxel: 2.5
+
+#第一段
+#origin_x: -0.8
+#origin_y: -2.0
+#origin_z: 0.6
+
+#第二段
+origin_x: -0.24
+origin_y: -0.5
+origin_z: 0.6
