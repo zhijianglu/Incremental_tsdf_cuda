@@ -132,14 +132,14 @@ Camera.height: 540
 
 #realworld 参数
 VoxelSize: 0.0015
-TruncationScale: 5  #Truncation是VoxelSize的倍数
+TruncationScale: 8  #Truncation是VoxelSize的倍数
 
 voxelField_rate_x: 0.98
 voxelField_rate_y: 0.98
 voxelField_rate_z: 0.98
 
-GridSize_x: 800
-GridSize_y: 800
+GridSize_x: 900
+GridSize_y: 900
 GridSize_z: 300
 #tsdf_threshold: 0.065
 tsdf_threshold: 0.12

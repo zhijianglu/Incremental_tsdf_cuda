@@ -161,7 +161,7 @@ main(int argc, char *argv[])
 
             cout << "load depth and color cost:" << timer.toc() << " ms" << endl;
             timer.tic();
-            Fusion.integrate(depth, (uchar3*)color_img.data, T_b_curr);  //输入深度数组float类型的，彩色图像，当前帧到参考基矩阵的转换矩阵
+            Fusion.integrate(depth, color_img.data, T_b_curr);  //输入深度数组float类型的，彩色图像，当前帧到参考基矩阵的转换矩阵
 
             std::cout << "Frame Index:" << Fusion.FrameId << " of " << data_manager.nImagesTol
                       << " time: " << curr_time_stamp

@@ -7,7 +7,10 @@ A simple example for TSDF fusion.
 
 ## 2. Results
 
-<img src="./output/results.png">
+<img src="./results/r1.png"> 
+<img src="./results/r2.png"> 
+<img src="./results/r3.png"> 
+
 
 ## 3. TO DO
 
@@ -15,4 +18,5 @@ A simple example for TSDF fusion.
 - [ ] Voxel Hash
 - [ ] Deintegration
 - [ ] PCL gpu module
+
 

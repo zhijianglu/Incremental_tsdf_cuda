@@ -265,14 +265,14 @@ CUDATSDFIntegrator::point(int pt_grid_x, int pt_grid_y, int pt_grid_z)
 
 // Integrate depth and color into TSDF model
 void
-CUDATSDFIntegrator::integrate(float *depth_cpu_data, uchar3 *color_cpu_data, float *T_bc_)
+CUDATSDFIntegrator::integrate(float *depth_cpu_data, uchar *color_cpu_data, float *T_bc_)
 {
     //std::cout << "Fusing color image and depth" << std::endl;
 
     // copy data to gpu
     TicToc timer;
     checkCudaErrors(cudaMemcpy(d_depth, depth_cpu_data, h_height * h_width * sizeof(float), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_color, color_cpu_data, h_height * h_width * sizeof(uchar3), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_color, color_cpu_data, 3 * h_height * h_width * sizeof(uchar), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(T_bc, T_bc_, 4 * 4 * sizeof(float), cudaMemcpyHostToDevice));
 
     cout << "load GPU memory cost:" << timer.toc() << " ms" << endl;

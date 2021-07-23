@@ -32,7 +32,7 @@ public:
 
 public:
 
-    void integrate(float* depth_cpu_data, uchar3* color_cpu_data, float* T_bc_);
+    void integrate(float* depth_cpu_data, uchar* color_cpu_data, float* T_bc_);
     Voxel* point(int pt_grid_x, int pt_grid_y, int  pt_grid_z);
 
     void deIntegrate(float* depth_cpu_data, uchar3* color_cpu_data, float* pose);
