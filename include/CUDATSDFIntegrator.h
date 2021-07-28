@@ -15,7 +15,19 @@
 #include "opencv2/calib3d/calib3d.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
+#include <device_launch_parameters.h>
+#include <pcl/gpu/containers/device_array.h>
+
 #include "Utils.h"
+#include <math.h>
 #include "Voxel.h"
 
 class CUDATSDFIntegrator
@@ -38,7 +50,7 @@ public:
     void deIntegrate(float* depth_cpu_data, uchar3* color_cpu_data, float* pose);
 
     void SaveVoxelGrid2SurfacePointCloud(float tsdf_thresh, float weight_thresh,Eigen::Matrix4d Twc);
-    void SaveVoxelGrid2SurfacePointCloud_1(float tsdf_thresh, float weight_thresh,Eigen::Matrix4d Twc);
+    void SaveVoxelGrid2SurfacePointCloud_1(float tsdf_thresh, float weight_thresh,float* Twc);
     int FrameId = 0;
     float h_exceed_num[3] = {0};
 
@@ -99,8 +111,10 @@ private:
     float* d_depth;
 
     float* T_bc;
+    float* T_wb;
     float* exceed_num;
 
+    pcl::gpu::DeviceArray<pcl::PointXYZRGB> d_cloud;
 
     uchar3* d_color;
 

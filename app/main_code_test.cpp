@@ -1,4 +1,3 @@
-
 //
 // Created by will on 19-10-17.
 //
@@ -19,62 +18,78 @@
 #pragma ide diagnostic ignored "EndlessLoop"
 using namespace std;
 
-double gaussrand()
-{
-    static double V1, V2, S;
 
-    static int phase = 0;
-    double X;
+int fused_scene = 0;  //一共融合了的场景
 
-    if ( phase == 0 ) {
-        do {
-            double U1 = (double)rand() / RAND_MAX;
-            double U2 = (double)rand() / RAND_MAX;
+enum STATE { scene_reflash, new_scene, reflashed };
 
-            V1 = 2 * U1 - 1;
-            V2 = 2 * U2 - 1;
-            S = V1 * V1 + V2 * V2;
-        } while(S >= 1 || S == 0);
+STATE curr_state = reflashed;
 
-        X = V1 * sqrt(-2 * log(S) / S);
-    } else
-        X = V2 * sqrt(-2 * log(S) / S);
-
-    phase = 1 - phase;
-
-    return X;
-}
+mutex mtx;
 
 int
-main()
+fuse_depth_map(int first_frame_idx, Eigen::Matrix4d &Twc);
+
+
+int
+main(int argc, char *argv[])
 {
+//  设置参数
+    if (argc == 1)
+        argv[1] = "../config/fusion_config_my.yaml";
 
-    vector<float> pt_x;
-    srandom((int)time(0));  // 产生随机种子  把0换成NULL也行
-    for (int i = 0; i < 10000; i++)
+    readParameters(argv[1]);
+
+//  准备数据
+    DataManager data_manager(Cfgparam);
+    data_manager.getAllData();
+
+    curr_scene.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
+    curr_scene->is_dense = false;
+
+    Eigen::Matrix4d e_Twc;
+    Eigen::Matrix4d base_e_Twc;
+    int cnter_fused = 0;
+
+    float T_wb[4 * 4] = {0};  //基坐标
+    float T_bw[4 * 4] = {0}; //Tcw
+
+    int fuse_cnt = 0;
+    string fixed_time;
+
+    float depth[Cfgparam.img_size.width * Cfgparam.img_size.height];
+    TicToc timer;
+    while (!data_manager.shouldQuit())
     {
-        pt_x.push_back((float)(gaussrand()));
-        cout<<pt_x.back()<<endl;
-    }
+        double curr_time_stamp = 0;
+        cv::Mat depth_mat;
+        cv::Mat depth_gt_mat;
+        cv::Mat color_img;
+        double curr_scale;
+        timer.tic();
+        bool has_results =
+            data_manager.grebFrame(color_img, depth_mat, depth_gt_mat, e_Twc, curr_scale, curr_time_stamp);
 
-
-    int sum_test = 0;
-    float mean_x = 0;
-    float stdv_x = 0;
-    vectorSumMean(pt_x, mean_x, stdv_x);
-    float min = (float) mean_x - 3.0f*(stdv_x);
-    float max = (float) mean_x + 3.0f*(stdv_x);
-    cout << min << " " << max << " std:" << stdv_x << endl;
-
-    for (int i = 0; i < pt_x.size(); ++i)
-    {
-        if (pt_x[i] > min && pt_x[i] < max)
+        if (has_results && !color_img.empty() && !depth_mat.empty())
         {
-            sum_test++;
-        }
-    }
-    std::cout << "  x percent : " << (double) sum_test / (double) pt_x.size() << std::endl;
+            ReadDepth(depth_mat, depth_gt_mat, depth, curr_scale);
 
+            float T_wc[4 * 4] = {0};
+            cnter_fused++;
+
+            for (int r = 0; r < 4; r++)
+                for (int c = 0; c < 4; c++)
+                    T_wc[r * 4 + c] = e_Twc(r, c);
+
+            float T_b_curr[16] = {0};
+            multiply_matrix(T_bw, T_wc, T_b_curr); // Tc1w * Twc2 = Tc1c2
+
+            fuse_cnt++;
+        }
+        else
+            continue;
+        if (data_manager.shouldQuit())
+            break;
+    }
 }
 
-#pragma clang diagnostic pop

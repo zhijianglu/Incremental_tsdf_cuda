@@ -5,6 +5,7 @@
 #include "CUDATSDFIntegrator.h"
 #include "parameters.h"
 #include <numeric>
+#include <pcl/filters/filter.h>
 
 void
 IntegrateDepthMapCUDA(float *d_cam_K,
@@ -37,6 +38,18 @@ calc_voxel_field(const int width,
 
 void
 deIntegrateDepthMapCUDA();
+
+void
+cuda_pcl_transfer(
+    float &tsdf_thresh,
+    float &weight_thresh,
+    float3 &grid_origin,
+    float3 &voxelSize,
+    int3 &gridSize,
+    Voxel *d_SDFBlocks,
+    pcl::PointXYZRGB *pts,
+    float* Twc
+);
 
 CUDATSDFIntegrator::CUDATSDFIntegrator()
 {
@@ -75,6 +88,9 @@ void
 CUDATSDFIntegrator::Initialize(cv::Mat &depth_img, cv::Mat &depth_gt_img, Eigen::Matrix4d &e_Twc,
                                float *depth, double scale_gt_div_est)
 {
+    cout << "start initializing!=================================" << endl;
+
+    TicToc timer;
     int width = Cfgparam.img_size.width;
     int height = Cfgparam.img_size.height;
     memset(depth, 0.0f, width * height); //清零
@@ -89,8 +105,10 @@ CUDATSDFIntegrator::Initialize(cv::Mat &depth_img, cv::Mat &depth_gt_img, Eigen:
     float sum_y = 0;
     float sum_z = 0;
 
+#pragma omp parallel for num_threads(16)
     for (int r = start_line; r < height; r++)
     {
+#pragma omp parallel for num_threads(16)
         for (int c = 0; c < width; c++)
         {
             int idx = r * width + c;
@@ -122,6 +140,10 @@ CUDATSDFIntegrator::Initialize(cv::Mat &depth_img, cv::Mat &depth_gt_img, Eigen:
             }
         }
     }
+
+    cout << "read depth cost:" << timer.toc() << endl;
+    timer.tic();
+
     mean_x = sum_x / (float) tol_valid_num;
     mean_y = sum_y / (float) tol_valid_num;
     mean_z = sum_z / (float) tol_valid_num;
@@ -133,6 +155,10 @@ CUDATSDFIntegrator::Initialize(cv::Mat &depth_img, cv::Mat &depth_gt_img, Eigen:
     cout << "element:" << element << endl;
     float3 mean_pts = make_float3(mean_x, mean_y, mean_z);
     calc_voxel_field(h_width, h_height, hist_num, element, mean_pts, d_curr_p3d, d_hist);
+
+    cout << "calc_voxel_field cost:" << timer.toc() << endl;
+    timer.tic();
+
     cudaMemcpy(h_hist, d_hist, hist_num * sizeof(int3), cudaMemcpyDeviceToHost);
     int3 th = make_int3(Cfgparam.voxelField_rate_x * (double) tol_valid_num,
                         Cfgparam.voxelField_rate_y * (double) tol_valid_num,
@@ -144,6 +170,7 @@ CUDATSDFIntegrator::Initialize(cv::Mat &depth_img, cv::Mat &depth_gt_img, Eigen:
 //        cout << " " << h_hist[j].x << " " << h_hist[j].y << " " << h_hist[j].z << endl;
 //    }
 
+#pragma omp parallel for num_threads(16)
     for (int i = 0; i < hist_num; ++i)
     {
         hist_sum.x += h_hist[i].x;
@@ -186,6 +213,10 @@ CUDATSDFIntegrator::Initialize(cv::Mat &depth_img, cv::Mat &depth_gt_img, Eigen:
 
     h_truncation = TruncationScale * h_voxelSize_z;
 
+    cout << "calc voxel size cost:" << timer.toc() << endl;
+    timer.tic();
+
+#if 0  //计算voxel范围包含率
     for (int i = 0; i < h_width * h_height; ++i)
     {
         if (h_curr_p3d[i].z == 0.0f)
@@ -205,10 +236,10 @@ CUDATSDFIntegrator::Initialize(cv::Mat &depth_img, cv::Mat &depth_gt_img, Eigen:
             sum_test_x++;
     }
 
-
     std::cout << "  x percent: " << (double) sum_test_x / (double) tol_valid_num << std::endl;
     std::cout << "  y percent: " << (double) sum_test_y / (double) tol_valid_num << std::endl;
     std::cout << "  z percent: " << (double) sum_test_z / (double) tol_valid_num << std::endl;
+#endif
 
     std::cout << "  x range: [" << h_grid_origin_x << "--" << h_grid_end_x << "] " << std::endl;
     std::cout << "  y range: [" << h_grid_origin_y << "--" << h_grid_end_y << "] " << std::endl;
@@ -236,10 +267,13 @@ CUDATSDFIntegrator::Initialize(cv::Mat &depth_img, cv::Mat &depth_gt_img, Eigen:
         checkCudaErrors(cudaMalloc(&d_color, h_height * h_width * sizeof(uchar3)));
         // pose in base coordinates
         checkCudaErrors(cudaMalloc(&T_bc, 4 * 4 * sizeof(float)));
+        checkCudaErrors(cudaMalloc(&T_wb, 4 * 4 * sizeof(float)));
 
         checkCudaErrors(cudaMalloc(&exceed_num, 3 * sizeof(float)));
 
         is_initialized = true;
+
+        d_cloud.create(h_gridSize_x * h_gridSize_y);
     }
 
     if (need_reset)
@@ -272,7 +306,10 @@ CUDATSDFIntegrator::integrate(float *depth_cpu_data, uchar *color_cpu_data, floa
     // copy data to gpu
     TicToc timer;
     checkCudaErrors(cudaMemcpy(d_depth, depth_cpu_data, h_height * h_width * sizeof(float), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_color, color_cpu_data, 3 * h_height * h_width * sizeof(uchar), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_color,
+                               color_cpu_data,
+                               3 * h_height * h_width * sizeof(uchar),
+                               cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(T_bc, T_bc_, 4 * 4 * sizeof(float), cudaMemcpyHostToDevice));
 
     cout << "load GPU memory cost:" << timer.toc() << " ms" << endl;
@@ -297,7 +334,8 @@ CUDATSDFIntegrator::integrate(float *depth_cpu_data, uchar *color_cpu_data, floa
                           d_SDFBlocks,
                           exceed_num
     );
-    cout << "fusion cost:" << timer.toc() << " ms" << endl;
+
+    cout << "TSDF function cost:" << timer.toc() << " ms" << endl;
 
     checkCudaErrors(cudaMemcpy(h_exceed_num, exceed_num,
                                3 * sizeof(float), cudaMemcpyDeviceToHost));
@@ -308,7 +346,6 @@ CUDATSDFIntegrator::integrate(float *depth_cpu_data, uchar *color_cpu_data, floa
         cout << "thd_exceed_num:" << exceed_thd.x << " " << exceed_thd.y << " " << exceed_thd.z << endl;
         need_reset = true;
     }
-
 
     FrameId++;
 }
@@ -363,16 +400,19 @@ CUDATSDFIntegrator::SaveVoxelGrid2SurfacePointCloud(float tsdf_thresh, float wei
 }
 
 void
-CUDATSDFIntegrator::SaveVoxelGrid2SurfacePointCloud_1(float tsdf_thresh, float weight_thresh, Eigen::Matrix4d Twc)
+CUDATSDFIntegrator::SaveVoxelGrid2SurfacePointCloud_1(float tsdf_thresh, float weight_thresh, float* Twc)
 {
+    TicToc timer_tol;
+    TicToc timer;
+    checkCudaErrors(cudaMemcpy(T_wb, Twc, 4 * 4 * sizeof(float), cudaMemcpyHostToDevice));
+    curr_scene->clear();
+    curr_scene->is_dense = false;
+    cout << "prepare cost:" << timer.toc() << endl;timer.tic();
 
+#if 0
     checkCudaErrors(cudaMemcpy(h_SDFBlocks, d_SDFBlocks,
                                h_gridSize_x * h_gridSize_y * h_gridSize_z * sizeof(Voxel), cudaMemcpyDeviceToHost));
-
     pcl::PointCloud<pcl::PointXYZRGB> curr_pointcloud;
-    curr_scene->clear();
-
-
     for (int y = 0; y < h_gridSize_y; ++y)
     {
         for (int x = 0; x < h_gridSize_x; ++x)
@@ -425,7 +465,33 @@ CUDATSDFIntegrator::SaveVoxelGrid2SurfacePointCloud_1(float tsdf_thresh, float w
             }
         }
     }
-    pcl::transformPointCloud(*curr_scene, *curr_scene, Twc);
+#else
+    float3 grid_origin = make_float3(h_grid_origin_x, h_grid_origin_y, h_grid_origin_z);
+    float3 voxelSize = make_float3(h_voxelSize_x, h_voxelSize_y, h_voxelSize_z);
+    int3 gridSize = make_int3(h_gridSize_x, h_gridSize_y, h_gridSize_z);
+
+    cuda_pcl_transfer(
+        tsdf_thresh,
+        weight_thresh,
+        grid_origin,
+        voxelSize,
+        gridSize,
+        d_SDFBlocks,
+        d_cloud.ptr(),
+        T_wb
+    );
+    cudaDeviceSynchronize();
+
+    cout << "process cost:" << timer.toc() << endl;timer.tic();
+
+    d_cloud.download(curr_scene->points);
+    std::vector<int> mapping;
+    pcl::removeNaNFromPointCloud(*curr_scene, *curr_scene, mapping);
+    cout << "download and remove NaN cost:" << timer.toc() << endl;timer.tic();
+
+#endif
+//    pcl::transformPointCloud(*curr_scene, *curr_scene, Twc);
+    cout << "tol cost:" << timer_tol.toc() << endl;
 }
 
 // Default deconstructor

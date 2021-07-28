@@ -9,8 +9,9 @@ set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV 3 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem)
+set(PCL_DIR /usr/local/include/pcl-1.9)
 
-find_package(PCL REQUIRED)
+find_package(PCL 1.9 REQUIRED)
 find_package(CUDA REQUIRED)
 set(CUDA_SEPARABLE_COMPILATION ON)
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
@@ -34,27 +35,6 @@ include_directories(
 # solve the problem: nvcc fatal: A single input file is required for a non-link phase when an outputfile is specified
 set_directory_properties( PROPERTIES COMPILE_DEFINITIONS "")
 
-
-# shared library
-#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
-#cuda_add_library(${PROJECT_NAME} SHARED
-#                src/Reader.cpp 
-#                src/CUDATSDFIntegrator.cpp
-#                src/CUDATSDFIntegrator.cu
-#)
-#target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
-
-
-# Example
-#cuda_add_executable(tsdf_fusion_prj_v1 app/main_tsdf_fusion.cpp
-#                           src/Reader.cpp
-#                           src/CUDATSDFIntegrator.cpp
-#                           src/DataManager.cpp
-#                           src/parameters.cpp
-#                           src/CUDATSDFIntegrator.cu
-#        )
-#target_link_libraries(tsdf_fusion_prj_v1 ${CUDA_LIBRARIES} ${OpenCV_LIBS}  ${Boost_LIBRARIES} ${PCL_LIBRARIES})
-
 cuda_add_executable(inc_tsdf app/main_whole_scene.cpp
         src/Reader.cpp
         src/CUDATSDFIntegrator.cpp
@@ -66,12 +46,14 @@ target_link_libraries(inc_tsdf ${CUDA_LIBRARIES} ${OpenCV_LIBS}  ${Boost_LIBRARI
 
 
 
+
 cuda_add_executable(code_test app/main_code_test.cpp
         src/Reader.cpp
+        src/pcl_cuda.cu
         src/CUDATSDFIntegrator.cpp
         src/DataManager.cpp
         src/parameters.cpp
         src/CUDATSDFIntegrator.cu
         )
-target_link_libraries(code_test ${CUDA_LIBRARIES} ${OpenCV_LIBS}  ${Boost_LIBRARIES} ${PCL_LIBRARIES})
+target_link_libraries(code_test  ${CUDA_LIBRARIES} ${OpenCV_LIBS}  ${Boost_LIBRARIES} ${PCL_LIBRARIES})
 

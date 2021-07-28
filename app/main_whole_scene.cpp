@@ -87,6 +87,8 @@ main(int argc, char *argv[])
     data_manager.getAllData();
 
     curr_scene.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
+    curr_scene->is_dense = false;
+
     std::thread thd_Draw;
     if (Cfgparam.incremental_show)
         thd_Draw = std::thread(display_thd);
@@ -146,8 +148,6 @@ main(int argc, char *argv[])
 
             float T_wc[4 * 4] = {0};
             cnter_fused++;
-            cout << "load data cost:" << timer.toc() << " ms" << endl;
-            timer.tic();
 
 //            cv::cvtColor(color_img, color_img, CV_BGR2RGB);
 //            memcpy(color, color_img.data, sizeof(uchar3) * Cfgparam.img_size.width * Cfgparam.img_size.height);
@@ -159,8 +159,6 @@ main(int argc, char *argv[])
             float T_b_curr[16] = {0};
             multiply_matrix(T_bw, T_wc, T_b_curr); // Tc1w * Twc2 = Tc1c2
 
-            cout << "load depth and color cost:" << timer.toc() << " ms" << endl;
-            timer.tic();
             Fusion.integrate(depth, color_img.data, T_b_curr);  //输入深度数组float类型的，彩色图像，当前帧到参考基矩阵的转换矩阵
 
             std::cout << "Frame Index:" << Fusion.FrameId << " of " << data_manager.nImagesTol
@@ -182,14 +180,14 @@ main(int argc, char *argv[])
 
         if (Fusion.need_reset)
         {
-            Fusion.SaveVoxelGrid2SurfacePointCloud_1(Cfgparam.tsdf_threshold, 0.0, base_e_Twc);
+            Fusion.SaveVoxelGrid2SurfacePointCloud_1(Cfgparam.tsdf_threshold, 0.0, T_wb);
             if(!curr_scene->empty())
                 pcl::io::savePCDFileBinary(Cfgparam.pc_save_path + "/fused_est" + fixed_time + ".pcd", *curr_scene);
         }
 
     }
 
-    Fusion.SaveVoxelGrid2SurfacePointCloud_1(Cfgparam.tsdf_threshold, 0.0, base_e_Twc);
+    Fusion.SaveVoxelGrid2SurfacePointCloud_1(Cfgparam.tsdf_threshold, 0.0, T_wb);
 
     if(!curr_scene->empty())
         pcl::io::savePCDFileBinary(Cfgparam.pc_save_path + "/fused_est" + fixed_time + ".pcd", *curr_scene);
@@ -197,9 +195,7 @@ main(int argc, char *argv[])
     std::cout << "new scene point num: " << curr_scene->size() << " , save PCD cost: " << timer.toc() << " ms."
               << std::endl;
     curr_state = new_scene;
-
     fused_scene++;
-
     if (Cfgparam.incremental_show)
     {
         thd_Draw.join();

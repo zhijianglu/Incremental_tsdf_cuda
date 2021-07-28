@@ -477,3 +477,163 @@ IntegrateDepthMapCUDA(float *d_cam_K,
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 }
+
+__global__ void
+cuda_pcl_transfer_kernel(
+    float tsdf_thresh,
+    float weight_thresh,
+    float3 grid_origin,
+    float3 voxelSize,
+    int3 gridSize,
+    Voxel* d_SDFBlocks,
+    pcl::PointXYZRGB* pts,
+    float* Twc
+    )
+{
+    const int x = threadIdx.x + blockIdx.x * blockDim.x;
+    const int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if (x >= gridSize.x || y >= gridSize.y)
+        return;
+
+    int idx = x * gridSize.x + y;
+
+    Voxel *best_voxel = nullptr;
+    float sum_z = 0;
+    float sum_weight = 0;
+    int best_z = -1;
+    for (int z = 0; z < gridSize.z; ++z)
+    {
+
+        int volume_idx = z * gridSize.x * gridSize.y +
+            y * gridSize.x +
+            x;
+
+        Voxel *curr_voxel = &d_SDFBlocks[volume_idx];
+
+        if (std::abs(curr_voxel->sdf) < tsdf_thresh && curr_voxel->weight > weight_thresh)
+        {
+            if (best_voxel == nullptr)
+            {
+                best_voxel = curr_voxel;
+                best_z = z;
+            }
+            else
+            {
+                sum_weight += curr_voxel->weight;
+                sum_z += curr_voxel->weight * (float) z;
+
+                if (curr_voxel->weight > best_voxel->weight && curr_voxel->sdf < best_voxel->sdf)
+                {
+                    best_voxel = curr_voxel;
+                    best_z = z;
+                }
+            }
+        }
+    }
+
+    if (best_z != -1)
+    {
+        float best_z_ = sum_z / sum_weight;
+        float pt_base_x = grid_origin.x + (float) x * voxelSize.x;
+        float pt_base_y = grid_origin.y + (float) y * voxelSize.y;
+        float pt_base_z = grid_origin.z + (float) best_z_ * voxelSize.z;
+
+//        pts[idx].x = pt_base_x;
+//        pts[idx].y = pt_base_y;
+//        pts[idx].z = pt_base_z;
+
+        pts[idx].x = Twc[0 * 4 + 0] * pt_base_x + Twc[0 * 4 + 1] * pt_base_y + Twc[0 * 4 + 2] * pt_base_z + Twc[0 * 4 + 3];
+        pts[idx].y = Twc[1 * 4 + 0] * pt_base_x + Twc[1 * 4 + 1] * pt_base_y + Twc[1 * 4 + 2] * pt_base_z + Twc[1 * 4 + 3];
+        pts[idx].z = Twc[2 * 4 + 0] * pt_base_x + Twc[2 * 4 + 1] * pt_base_y + Twc[2 * 4 + 2] * pt_base_z + Twc[2 * 4 + 3];
+
+
+        pts[idx].r = best_voxel->color.z;
+        pts[idx].g = best_voxel->color.y;
+        pts[idx].b = best_voxel->color.x;
+    }else{
+        pts[idx].x = NAN;
+        pts[idx].y = NAN;
+        pts[idx].z = NAN;
+    }
+
+}
+
+__global__ void
+pcl_cuda_test1(
+    float& tsdf_thresh,
+    float& weight_thresh,
+    float3& grid_origin,
+    float3& voxelSize,
+    int3 gridSize,
+    Voxel* d_SDFBlocks,
+    pcl::PointXYZRGB* pts
+    )
+{
+    const int pix_x = threadIdx.x + blockIdx.x * blockDim.x;
+    const int pix_y = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if (pix_x >= gridSize.x || pix_y >= gridSize.y)
+        return;
+
+    int idx = pix_x * gridSize.x + pix_y;
+
+    if (pix_x > gridSize.x / 2)
+    {
+        pts[idx].x = (float) pix_x;
+        pts[idx].y = (float) pix_y;
+        pts[idx].z = (float) pix_y;
+
+        pts[idx].r = 125;
+        pts[idx].g = 125;
+        pts[idx].b = 125;
+    }
+    else
+    {
+        pts[idx].x = NAN;
+    }
+}
+
+void
+cuda_pcl_transfer(
+    float& tsdf_thresh,
+    float& weight_thresh,
+    float3& grid_origin,
+    float3& voxelSize,
+    int3& gridSize,
+    Voxel* d_SDFBlocks,
+    pcl::PointXYZRGB* pts,
+    float* Twc
+){
+
+    dim3 image_block;
+    dim3 image_grid;
+    image_block.x = 32;
+    image_block.y = 32;
+    image_grid.x = (gridSize.x + image_block.x - 1) / image_block.x;
+    image_grid.y = (gridSize.y + image_block.y - 1) / image_block.y;
+
+//    pcl_cuda_test1<<< image_grid, image_block >>>(gridSize.x,
+//                                                  gridSize.y,
+//                                                 pts
+//    );
+    cuda_pcl_transfer_kernel<<< image_grid, image_block >>>(tsdf_thresh,
+                                                            weight_thresh,
+                                                            grid_origin,
+                                                            voxelSize,
+                                                            gridSize,
+                                                            d_SDFBlocks,
+                                                            pts,
+                                                            Twc
+    );
+
+//    cuda_pcl_transfer_kernel<<< image_grid, image_block >>>(tsdf_thresh,
+//                                                            weight_thresh,
+//                                                            grid_origin,
+//                                                            voxelSize,
+//                                                            gridSize,
+//                                                            d_SDFBlocks,
+//                                                            pts
+//    );
+}
+

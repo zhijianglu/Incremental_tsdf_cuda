@@ -4,6 +4,7 @@
 
 #include "Reader.h"
 #include "parameters.h"
+#include <omp.h>
 
 /**
  * @brief Load camera matrix
@@ -42,7 +43,8 @@ ReadDepth(cv::Mat &depth_img, cv::Mat &depth_gt_img,
     memset(depth, 0.0f, width * height); //清零
     int valid_cnter = 0;
     int start_line = 0;
-
+TicToc timer;
+#pragma omp parallel for num_threads(32)
     for (int r = start_line; r < height; r++)
         for (int c = 0; c < width; c++)
         {
@@ -57,6 +59,8 @@ ReadDepth(cv::Mat &depth_img, cv::Mat &depth_gt_img,
             if (depth[r * width + c] > 6.0 || depth[r * width + c] < 0.2 )
                 depth[r * width + c] = 0.0; // Only consider depth < 6m
         }
+
+    cout << "read depth cost:" << timer.toc() << endl;
 }
 /**
  * @brief Matrix inverse
